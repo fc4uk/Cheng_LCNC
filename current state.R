@@ -1,6 +1,6 @@
 
 
-
+setwd("C:/Users/Fangwei Cheng/Documents/GitHub/Cheng_LCNC")
 set.seed(1)
 # import library
 library(kableExtra)
@@ -138,7 +138,7 @@ HTT_Action_GWP <- function(a){
   # GWP for HTT unit is the product of required heat and its corresponding carbon intensity
   df$HTT_GWP <- gwp_NG*E_HTL
   # calculate GWP associated with solvent extraction 
-  df$solvent_GWP <- 1000*(df$biocrude/100)*(0.03*gwp_hexane+(2.30*gwp_NG+0.08*gwp_electricity))
+  df$solvent_GWP <- 1000*(df$biocrude/100)*(0.003*gwp_hexane+(2.30*gwp_NG+0.08*gwp_electricity))
   # calculate GWP associated with upgrading
   df$H2_GWP <- df$biocrude/100*0.034*gwp_h2*1000
   # calculate GWP associated with ACP treatment; different feedstocks were assumed to have different TN, TP, and COD
@@ -368,6 +368,7 @@ wood_cost <- 40 #$/t
 NG_cost <- 0.004 #$/MJ
 electricity_cost <- 0.06 #$/kwh
 electricity_sale <- 0.06 #$/kwh
+h2_cost <- 2 #$/kg
 methanol_cost <- 500 # $/t
 FeSO4_cost <- 120  # $/t
 hexane_cost <- 1000  # $/t
@@ -397,13 +398,13 @@ HTT_Action_LCNC <- function(a){
   # calculate the cost of feedstocks 
   F_cost <- feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # The capital cost of HTT
-  capital_cost <-rtriangle(n=1000,a=487.92*0.7,b=487.92*1.3,c=487.92)
-  # Assuming the operating and maintenance cost is 10% of total capital cost
-  OM_cost <- capital_cost*0.1
-  # The plant capacity is 2000t/day, so the annual cost of feedstock would be calculated as follow
-  feedstock_cost <-rtriangle(n=1000,a=F_cost*0.7,b=F_cost*1.3,c=F_cost)*2000*365/1000^2
-  # in 1 year, 2000 t/day * 365 day = 730000 t biomass was consumed
-  feedstock_annual <- 2000*365
+  capital_cost <-rtriangle(n=1000,a=420*0.7,b=420*1.3,c=420)
+  # Operating and maintenance cost is 19.4 M/yr
+  OM_cost <- rtriangle(n=1000,a=19.4*0.7,b=19.4*1.3,c=19.4)
+  # in 1 year, 1340 t/day * 330 day = 44200 t biomass was consumed
+  feedstock_annual <- 1340*330
+  # The annual cost of feedstock would be calculated as follow
+  feedstock_cost <-rtriangle(n=1000,a=F_cost*0.7,b=F_cost*1.3,c=F_cost)*feedstock_annual/1000^2
   # The cost of preprocessing
   pre_cost <- feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$electricity_for_HTT*electricity_cost*feedstock_annual/1000^2
   # The energy required to run HTT  
@@ -411,17 +412,17 @@ HTT_Action_LCNC <- function(a){
   # Natural gas was used to supply the heat required to run HTT, so the cost of HTL unit was calculated as follow 
   HTL_cost = E_HTL*NG_cost*feedstock_annual/1000^2
   # solvent required to separe biocrude from ACPs  
-  solvent_cost <- 890*(df$biocrude/100)*(0.03*hexane_cost/1000+(2.30*NG_cost+0.08*electricity_cost))*feedstock_annual/1000^2
+  solvent_cost <- (df$biocrude/100)*(0.003*hexane_cost+(2.30*NG_cost+0.08*electricity_cost))*feedstock_annual/1000^2
   # Calculate the cost to treat ACP based on the type of feedstocks.
   ifelse(feedstock == "Biosolids",ACP_cost<-feedstock_annual*(1/(df$Solid/100)-1)*(1.933*3.4*methanol_cost/1000+1.37*1.8*0.222*FeSO4_cost/1000+66.7*0.6*2.2*electricity_cost)/1000^2, ACP_cost  <- feedstock_annual*(1/(df$Solid/100)-1)*(0.048*3.4*methanol_cost/1000+1.07*0.027*0.222*FeSO4_cost/1000+23*0.6*2.2*electricity_cost)/1000^2)
   # The commerial power plant of HTT-CCS was not estabilished, so we used $80/t as the cost to capture CO2 from HTT system. The CO2 capture efficiency was 90%
   ccs_cost <-feedstock_annual/1000^2*1000*(df$gas/100 + df$biochar_C/12*44)*CO2_capture/1000*80  # capture 1 t CO2 cost $80
   # Calculate the cost of hydrogen based on the biocrude yields. 
-  hydrogen_cost <- df$biocrude/100* 0.034* 1000*2*feedstock_annual/1000^2
+  hydrogen_cost <- h2_cost*df$biocrude/100* 0.034* 1000*feedstock_annual/1000^2
   # the market price of produced oil, assume liquid fuel = $2.35/gal
   out_oil <- (df$biocrude/100* 0.85*1000)*0.264*oil_sale*feedstock_annual/1000^2 # 2.35/gal liquid fuel
   # Add the electricity, energy, material costs together as cost_in
-  cost_in <- feedstock_cost + rep(pre_cost,1000) + HTL_cost + solvent_cost + rep(ACP_cost,50) + rep(ccs_cost, 50)
+  cost_in <- feedstock_cost + pre_cost + HTL_cost + solvent_cost + ACP_cost + ccs_cost+hydrogen_cost
   # hydrochar was burned to produce electircity, calculate the market price of generated electricity based on the HHV of hydrochar and the electricical efficiency (0.25)
   out_electricity <- df$biochar_HHV*1000*0.25*feedstock_annual/1000^2/3.6*electricity_cost
   # Get the GWP of this action based on previous function
@@ -682,8 +683,8 @@ kk$technology <- factor(kk$technology, levels = c("HTT", "Pyrolysis", "Gasificat
 # plot boxplot diagram
 plot_LCNC <- ggplot() + geom_boxplot(data = kk,fatten =1, aes(x = reorder(variable,value, FUN = mean), y = value, fill = technology))+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Levelized cost of carbon ($/t CO2)")+theme(axis.text.x = element_text(angle = 90))+xlab("Action")+  stat_summary(fun=mean, colour="darkred", geom="point", 
                                                                                                                                                                                                                                                                                                                                                                                                                                      shape=18, size=3)+theme(legend.position= "none")+
-  geom_text(data = means, aes(label = value, x = variable, y = 1000))+
-  ylim(-600,1000)+
+  geom_text(data = means, aes(label = value, x = variable, y = 1200))+
+  ylim(-600,1200)+
   ggtitle("(a). LCNC of each action; electricity and heat come from current state")+
   theme(plot.title = element_text(size=10,face = "bold"), axis.title.y = element_text(size = 8, face = "bold"),
         axis.title.x = element_blank(),axis.text = element_text(size = 6,face = "bold"))
