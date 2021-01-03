@@ -1,16 +1,12 @@
-
-
-
+setwd("C:/Users/Fangwei Cheng/Documents/GitHub/Cheng_LCNC")
 set.seed(1)
+# import library
 library(kableExtra)
 library(randomForest)
 library(ggplot2)
 library(reshape2)
 library(cowplot)
 library(triangle)
-
-
-setwd("C:/Users/Fangwei Cheng/Documents/GitHub/Cheng_LCNC")
 
 
 action = data.frame(Action = paste0("Action",1:24), 
@@ -107,13 +103,17 @@ biomass_data$OC <- biomass_data$O/biomass_data$C/16*12
 biomass_data$NC <- biomass_data$N/biomass_data$C/14*12
 
 # creat a table that summarize feedstock parameters
-feedstock_parameters <- data.frame(feedstock = c("Crop Residues", "Woody Wastes", "Biosolids"), Moisture = c(0.16,0.22,0.8), production_gwp = c(57,33,0), electricity_for_pre_pyrolysis = c(336,336,516), electricity_for_HTT = c(402,402,580), feedstock_cost = c(90,40,0))
+feedstock_parameters <- data.frame(feedstock = c("Crop Residues", "Woody Wastes", "Biosolids"), 
+                                   Moisture = c(0.16,0.22,0.8), production_gwp = c(0,0,0), 
+                                   electricity_for_pre_pyrolysis = c(338,338,516), 
+                                   electricity_for_HTT = c(402,402,580), 
+                                   feedstock_cost = c(90,40,0))
 
 
 # GWP factor for energy and materials
 # for this scenario, GWP associated with heat and electricity were assumed to be zero
-gwp_electricity <- 0
-gwp_NG <- 0
+gwp_electricity <- 40/1000 #kg CO2/KWh
+gwp_NG <- gwp_electricity/3.6 #kg CO2/MJ
 gwp_hexane <- 35.35/1000 #kg CO2/kg
 gwp_h2 <- 11.07 #kg CO2/kg
 gwp_meoh <- 1.1 #kg CO2/kg
@@ -123,7 +123,7 @@ gwp_mea <- 3.2 #kg CO2/kg
 #CO2 capture rate
 CO2_capture <- 0.9
 
-# write a function that calculate the GWP of action 1-9 (hydrothermal treatment system); input is action 1-9
+# write a function that calculate the GWP of action 1-9 (hydrothermal treatment system); input are action 1-9
 HTT_Action_GWP <- function(a){
   # get the name of feedstock
   feedstock =  as.character(action[action$Action == a,]$Feedstocks)
@@ -206,7 +206,7 @@ df <- data.frame(char_HHV = df1$char_HHV,Ash = as.numeric(df1$Ash),Temperature =
 df <-na.omit(df)
 
 fit_char_HHV <- randomForest(char_HHV ~ Ash +  OC +HC +NC   + Temperature + heating_rate + time  , 
-                             data = df, importance = TRUE,ntree = 9500, mtry = 10)
+                             data = df, importance = TRUE,ntree = 9500, mtry = 6)
 fit_char_HHV
 
 ##############################
@@ -385,11 +385,12 @@ plot_GWP_zero <- ggplot() + geom_bar(data = Action_summary, aes(x = Action, y = 
   theme(legend.title=element_blank(),legend.text = element_text(size = 5,face = "bold"))+
   guides(color = guide_legend(override.aes = list(size = 2)))+
   ylab("GWP (kg CO2 eq/t biomass on dry weight)")+
-  ggtitle("(b). GWP of each action, electricity and heat come from carbon netural resources")
+  ggtitle("(b). GWP of each action, electricity and heat come from carbon netural resources")+
+  scale_y_continuous(breaks=seq(-1500,1000,300))
 
 plot_GWP_zero 
 
-ggsave("GWP_ZERO.jpg", plot_GWP_zero,height = 3, width = 7.5)
+ggsave("GWP_ZERO.jpg", plot_GWP_zero,height = 2.5, width = 7.5,dpi = 1200)
 
 # all the actions are carbon negative
 Action_negative = c(paste0("Action",1:24))
@@ -398,10 +399,6 @@ Action_negative
 #######################################################
 #Economic assessment
 # Here are the financial parameters evaluated in this study
-discount <- 0.1
-crop_cost <- 90  #$/t
-forest_cost <-30  #$/t
-wood_cost <- 40 #$/t
 NG_cost <- 0.004 #$/MJ
 electricity_cost <- 0.06 #$/kwh
 electricity_sale <- 0.06 #$/kwh
@@ -411,6 +408,7 @@ hexane_cost <- 1000  # $/t
 h2_cost <- 2 #$/kg
 oil_sale <- 2.35 # $/gal
 biochar_sale <- 1137 #$/t
+biochar_sale_biosolid <- 534 #$/t
 ################################
 
 
@@ -436,15 +434,15 @@ HTT_Action_LCNC <- function(a){
   F_cost <- feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # The capital cost of HTT
   capital_cost <-rtriangle(n=1000,a=420*0.7,b=420*1.3,c=420)
-  # Operating and maintenance cost is 19.4 M/yr
+  # Fixed Operating and maintenance cost is 19.4 M/yr
   OM_cost <- rtriangle(n=1000,a=19.4*0.7,b=19.4*1.3,c=19.4)
   # in 1 year, 1340 t/day * 330 day = 44200 t biomass was consumed
   feedstock_annual <- 1340*330
   # The annual cost of feedstock would be calculated as follow
   feedstock_cost <-rtriangle(n=1000,a=F_cost*0.7,b=F_cost*1.3,c=F_cost)*feedstock_annual/1000^2
-  # The cost of preprocessing
+  # The cost of preprocessing, electricity cost. 
   pre_cost <- feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$electricity_for_HTT*electricity_cost*feedstock_annual/1000^2
-  # The energy required to run HTT  
+  # The energy required to run HTT (MJ/t feedstock)
   E_HTL <- 1000*(((1/(df$Solid/100)-1)*(125*4.22+4.86*(df$Temperature-150))/1000+1*1.25/1000))*(1-0.7)
   # electricity was used to supply the heat required to run HTT, so the cost of HTL unit was calculated as follow 
   HTL_cost = E_HTL*electricity_cost/3.6*feedstock_annual/1000^2
@@ -461,14 +459,14 @@ HTT_Action_LCNC <- function(a){
   # Add the electricity, energy, material costs together as cost_in
   cost_in <- feedstock_cost + pre_cost + HTL_cost + solvent_cost + ACP_cost + ccs_cost+hydrogen_cost
   # hydrochar was burned to produce electircity, calculate the market price of generated electricity based on the HHV of hydrochar and the electricical efficiency (0.25)
-  out_electricity <- df$biochar_HHV*1000*0.25*feedstock_annual/1000^2/3.6*electricity_cost
+  out_electricity <- df$biochar_HHV*1000*0.25*feedstock_annual/1000^2/3.6*electricity_sale
   # Get the GWP of this action based on previous function
   action_GWP = HTT_Action_GWP(a)
   # calculate the GWP of such systems annually by mutiplying the annual feedstock consumption (t/year)
   annual_GWP =  feedstock_annual/1000*action_GWP
-  # discount rate 
-  r <-0.1
-  # plant life is 20 year
+  # discount rate  =5%
+  r <-0.05
+  # plant life is 30 year
   plant_life = 30
   # get a function to calculate the sum of levelized cost, n =the nth year, m = the cost in the first year, r = discount rate  
   f <- function(n,m,r){
@@ -521,16 +519,16 @@ Pyrolysis_Action_LCNC <- function(a){
   ifelse(df$gas_oil_heat>df$drying_heat, drying_cost <-0, drying_cost <- (df$drying_heat - df$gas_oil_heat)*electricity_cost/3.6*feedstock_annual/1000^2)
   # calculate variable costs
   cost_in <- feedstock_cost + pre_cost +drying_cost
-  # calculate exported heat
-  out_heat <- ifelse(feedstock == "Biosolids", 0, ((df$HHV - df$biochar_HHV)*0.85*1000-df$drying_heat)*NG_cost*feedstock_annual/1000^2)
+  # calculate exported heat, heat was subsituted for the cost of NG
+  out_heat <- ifelse(feedstock == "Biosolids", 0, ((df$HHV - df$biochar_HHV)*0.85*1000-df$drying_heat)*electricity_sale/3.6*feedstock_annual/1000^2)
   # calculate the sale of biochar 
-  out_biochar <- df$biochar/100*feedstock_annual/1000^2 *biochar_sale
+  out_biochar <- ifelse(feedstock == "Biosolids",df$biochar/100*feedstock_annual/1000^2 *biochar_sale_biosolid, df$biochar/100*feedstock_annual/1000^2 *biochar_sale)
   # get the GWP of this action; unit = kg CO2/1 t feedstock
   action_GWP = Pyrolysis_Action_GWP(a)
   # get the annual GWP by multiplying annual feedstock consumption and the GWP of 1 t feedstock
   annual_GWP =  feedstock_annual/1000*action_GWP
-  # discount rate = 10%
-  r = 0.1
+  # discount rate = 5%
+  r = 0.05
   # plant lifetime = 20  year
   plant_life = 20
   # calculate discount cash flow, n = year, m = cost at that year, r = discount rate
@@ -559,16 +557,16 @@ Gasification_Action_LCNC <- function(a){
   df$drying_heat <- 1000/(1-feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$Moisture)*2.28/0.75
   # capital cost
   capital_cost_IGCC <- rtriangle(n=1000,a=2655*0.7,b=2655*1.3,c=2655)
-  # fixed O&M cost; F O &M = $170/kw year = 170*300*1000/1000^2 = 51 M/year
+  # fixed O&M cost; FOM = $170/kw year = 170*300*1000/1000^2 = 51 M/year
   OM_cost_IGCC <- rtriangle(n=1000,a=51*0.7,b=51*1.3,c=51)
-  # vairable O&M cost; V O &M = $18/Mwh  = 18*300*7000/1000^2= 37.8 M/year
+  # vairable O&M cost; VOM = $18/Mwh  = 18*300*7000/1000^2= 37.8 M/year
   variable_IGCC <- rtriangle(n=1000,a=37.8*0.7,b=37.8*1.3,c=37.8)
   # add up fixed OM and variable OM
   fix_variable <- OM_cost_IGCC +variable_IGCC
   # feedstock cost
   F_cost = feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # generated electricity per year
-  generated_electricity = 7000*300 #MW
+  generated_electricity = 7000*300 #MWh
   # sale of generated electricity
   electricity_cost_IGCC = generated_electricity*1000*electricity_sale/1000^2  #M
   # feedstock consumption per year
@@ -581,8 +579,8 @@ Gasification_Action_LCNC <- function(a){
   action_GWP = Gasification_Action_GWP(a)
   # calculate the annual GWP of such action 
   annual_GWP =  feedstock_t_IGCC/1000*action_GWP
-  # discount rate
-  r = 0.1
+  # discount rate = 5%
+  r = 0.05
   # plant life
   plant_life = 30
   # discounted cost benefit analysis
@@ -633,8 +631,8 @@ Combustion_Action_LCNC <- function(a){
   action_GWP = Gasification_Action_GWP(a)
   # calculate the annual GWP of such action 
   annual_GWP =  feedstock_t_PC/1000*action_GWP
-  # discount rate
-  r = 0.1
+  # discount rate = 5%
+  r = 0.05
   # plant life
   plant_life = 30
   # discounted cost benefit analysis
@@ -683,7 +681,7 @@ for (i in c(22:24)){
   assign(paste0("Action_LCNC",i),as.numeric(unlist(Combustion_Action_LCNC(action_all[i])[2])))
 }
 
-# only negatative emissions technologies would be used to assess LCNC
+# only negative emissions technologies would be used to assess LCNC
 negative_action_summary = data.frame(Action1 = Action_LCNC1)
 negative_action_summary$Action2 <- Action_LCNC2
 negative_action_summary$Action3 <- Action_LCNC3
@@ -721,16 +719,16 @@ kk$technology <-ifelse(kk$action  %in%  c(1,2,3,4,5,6,7,8,9), "HTT", ifelse(kk$a
 kk$technology <- factor(kk$technology, levels = c("HTT", "Pyrolysis", "Gasification","Combustion"))
 
 # plot boxplot diagram
-plot_LCNC_ZERO <- ggplot() + geom_boxplot(data = kk,fatten =1, aes(x = reorder(variable,value, FUN = mean), y = value, fill = technology))+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Levelized cost of carbon ($/t CO2)")+theme(axis.text.x = element_text(angle = 90))+xlab("Action")+  stat_summary(fun=mean, colour="darkred", geom="point", 
+plot_LCNC_ZERO <- ggplot() + geom_boxplot(data = kk,fatten =1, aes(x = reorder(variable,value, FUN = mean), y = value, fill = technology),outlier.shape = NA)+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Levelized cost of carbon ($/t CO2)")+theme(axis.text.x = element_text(angle = 90))+xlab("Action")+  stat_summary(fun=mean, colour="darkred", geom="point", 
                                                                                                                                                                                                                                                                                                                                                                                                                                      shape=18, size=2)+theme(legend.position= "bottom")+
-  geom_text(data = means, aes(label = value, x = variable, y = 1200), size = 3)+
-  ylim(-300,1200)+
+  geom_text(data = means, aes(label = value, x = variable, y = 1500), size = 3)+
   ggtitle("(b). LCNC of each action; electricity and heat come from carbon netural resources")+
   theme(plot.title = element_text(size=10,face = "bold"), axis.title.y = element_text(size = 8, face = "bold"),
-        axis.title.x = element_blank(),axis.text = element_text(size = 6,face = "bold"))
+        axis.title.x = element_blank(),axis.text = element_text(size = 6,face = "bold"))+
+  scale_y_continuous(breaks=seq(-1500,1500,300))
 
 
 plot_LCNC_ZERO
 
-ggsave("LCNC_ZERO.png",plot_LCNC_ZERO, height = 3.5, width = 7)
+ggsave("LCNC_ZERO.jpg",plot_LCNC_ZERO, height = 3.5, width = 7,dpi = 1200)
 
