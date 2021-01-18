@@ -1,6 +1,4 @@
 
-
-setwd("C:/Users/Fangwei Cheng/Documents/GitHub/Cheng_LCNC")
 set.seed(1)
 # import library
 library(kableExtra)
@@ -97,7 +95,7 @@ biomass_data$NC <- biomass_data$N/biomass_data$C/14*12
 
 # create a table that summarize feedstock parameters
 feedstock_parameters <- data.frame(feedstock = c("Crop Residues", "Woody Wastes", "Biosolids"), 
-                                   Moisture = c(0.16,0.22,0.8), production_gwp = c(0,0,0), 
+                                   Moisture = c(0.16,0.22,0.8), production_gwp = c(57,33,0), 
                                    electricity_for_pre_pyrolysis = c(338,338,516), 
                                    electricity_for_HTT = c(402,402,580), 
                                    feedstock_cost = c(90,40,0))
@@ -366,7 +364,6 @@ Action_negative = c(paste0("Action",2:8),paste0("Action",11:16),paste0("Action",
 #######################################################
 #Economic assessment
 # Here are the financial parameters evaluated in this study
-discount <- 0.1
 NG_cost <- 0.004 #$/MJ
 electricity_cost <- 0.06 #$/kwh
 electricity_sale <- 0.06 #$/kwh
@@ -403,7 +400,7 @@ HTT_Action_LCNC <- function(a){
   # The capital cost of HTT
   capital_cost <-rtriangle(n=1000,a=420*0.7,b=420*1.3,c=420)
   # Operating and maintenance cost is 19.4 M/yr
-  OM_cost <- rtriangle(n=1000,a=19.4*0.7,b=19.4*1.3,c=19.4)
+  FOM_cost <- rtriangle(n=1000,a=19.4*0.7,b=19.4*1.3,c=19.4)
   # in 1 year, 1340 t/day * 330 day = 44200 t biomass was consumed
   feedstock_annual <- 1340*330
   # The annual cost of feedstock would be calculated as follow
@@ -443,7 +440,7 @@ HTT_Action_LCNC <- function(a){
     return(x)
   }
   # calculate the levelized cost of carbon
-  NPV = -(capital_cost + f(plant_life, OM_cost, r)+ f(plant_life,cost_in,r) -  f(plant_life,out_oil,r)-f(plant_life,out_electricity,r))
+  NPV = -(capital_cost + f(plant_life, FOM_cost, r)+ f(plant_life,cost_in,r) -  f(plant_life,out_oil,r)-f(plant_life,out_electricity,r))
   LCNC = NPV/(f(plant_life,annual_GWP,r))*1000^2
   
   return(list("NPV" = NPV, "LCNC" = LCNC))
@@ -470,7 +467,7 @@ Pyrolysis_Action_LCNC <- function(a){
   # get capital cost 
   capital_cost <-rtriangle(n=1000,a=76.7*0.7,b=76.7*1.3,c=76.7)
   # get fixed Operating, Maintenance, and labor cost
-  OM_cost <- rtriangle(n=1000,a=7.8*0.7,b=7.8*1.3,c=7.8)
+  FOM_cost <- rtriangle(n=1000,a=7.8*0.7,b=7.8*1.3,c=7.8)
   # get the cost of feedstocks 
   F_cost <- feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # feedstock annual consumption
@@ -505,7 +502,7 @@ Pyrolysis_Action_LCNC <- function(a){
     for (i in 1:n) x = x + m/(1+r)^i
     return(x)
   }
-  NPV = -(capital_cost + f(plant_life, OM_cost, r)+ f(plant_life,cost_in,r) -  f(plant_life,out_heat,r)-f(plant_life, out_biochar,r))
+  NPV = -(capital_cost + f(plant_life, FOM_cost, r)+ f(plant_life,cost_in,r) -  f(plant_life,out_heat,r)-f(plant_life, out_biochar,r))
   # Levelized cost of negative emissions
   LCNC = NPV/(f(plant_life,annual_GWP,r))*1000^2
   
@@ -526,11 +523,11 @@ Gasification_Action_LCNC <- function(a){
   # capital cost
   capital_cost_IGCC <- rtriangle(n=1000,a=2655*0.7,b=2655*1.3,c=2655)
   # fixed O&M cost; FOM = $170/kw year = 170*300*1000/1000^2 = 51 M/year
-  OM_cost_IGCC <- rtriangle(n=1000,a=51*0.7,b=51*1.3,c=51)
+  FOM_cost_IGCC <- rtriangle(n=1000,a=51*0.7,b=51*1.3,c=51)
   # vairable O&M cost; VOM = $18/Mwh  = 18*300*7000/1000^2= 37.8 M/year
   variable_IGCC <- rtriangle(n=1000,a=37.8*0.7,b=37.8*1.3,c=37.8)
   # add up fixed OM and variable OM
-  fix_variable <- OM_cost_IGCC +variable_IGCC
+  fix_variable <- FOM_cost_IGCC +variable_IGCC
   # feedstock cost
   F_cost = feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # generated electricity per year
@@ -578,11 +575,11 @@ Combustion_Action_LCNC <- function(a){
   # capital cost
   capital_cost_PC <- rtriangle(n=1000,a=2310*0.7,b=2310*1.3,c=2310)
   # fixed O&M cost; F O &M = $116/kw year = 116*300*1000/1000^2 = 34.8 M/year
-  OM_cost_PC <- rtriangle(n=1000,a=34.8*0.7,b=34.8*1.3,c=34.8)
+  FOM_cost_PC <- rtriangle(n=1000,a=34.8*0.7,b=34.8*1.3,c=34.8)
   # vairable O&M cost; V O &M = $13.4/Mwh  = 13.4*300*7000/1000^2= 28.14 M/year
   variable_PC <- rtriangle(n=1000,a=28.14*0.7,b=28.14*1.3,c=28.14)
   # add up fixed OM and variable OM
-  fix_variable <- OM_cost_PC +variable_PC
+  fix_variable <- FOM_cost_PC +variable_PC
   # feedstock cost
   F_cost = feedstock_parameters[feedstock_parameters$feedstock == feedstock,]$feedstock_cost
   # generated electricity per year
